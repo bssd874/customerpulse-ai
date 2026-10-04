@@ -1,0 +1,19 @@
+call_id,customer_id,call_date,agent_name,transcript
+CL001,C001,2026-07-03,Maya,Thank you for helping with the travel notice. I hope the card works normally overseas.
+CL002,C001,2026-09-23,Ahmed,"I am frustrated that overseas transactions are still being declined. I have contacted support repeatedly, the card restriction is still not resolved, and I am concerned I may need to move to another provider if this continues."
+CL003,C002,2026-08-12,Salma,"The annual statement was clear. Thank you, the service has been helpful."
+CL004,C003,2026-09-20,Nabil,I am disappointed that the reversal is still not visible and I have been waiting for an update.
+CL005,C004,2026-09-04,Maya,The beneficiary is active now. I appreciate the quick confirmation.
+CL006,C005,2026-09-13,Reem,"The replacement card arrived, but I still have a question about the fee."
+CL007,C006,2026-09-09,Ahmed,The app issue is inconvenient. Please let me know when the spending view is resolved.
+CL008,C007,2026-09-26,Salma,Everything works well again and the notification issue was resolved. Thank you.
+CL009,C008,2026-09-20,Nabil,The declined supplier payment created a problem for the business. I need a clear resolution quickly.
+CL010,C009,2026-08-07,Reem,The miles arrived and I am satisfied with the explanation.
+CL011,C010,2026-09-11,Maya,The consolidated statement is exactly what I needed. Excellent support.
+CL012,C011,2026-09-18,Ahmed,The two declined payments were inconvenient. Please confirm when the card issue is resolved.
+CL013,C012,2026-09-03,Salma,The document review was completed and our transfer process works well now.
+CL014,C013,2026-09-20,Nabil,"The duplicate transaction was resolved, but I am waiting for confirmation of the upgrade benefits."
+CL015,C014,2026-09-02,Reem,Thank you for explaining the account fee. The answer was helpful.
+CL016,C003,2026-06-11,Maya,I was happy with the travel card until the recent reward issue.
+CL017,C008,2026-05-07,Ahmed,The business account has been reliable and the team was helpful.
+CL018,C011,2026-05-29,Salma,"Contactless payment usually works well, so the recent issue is surprising."

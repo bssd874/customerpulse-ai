@@ -1,0 +1,31 @@
+ticket_id,customer_id,created_at,category,priority,status,summary
+TK001,C001,2026-07-02,Card,MEDIUM,RESOLVED,Travel notification was not reflected immediately.
+TK002,C001,2026-08-26,Transactions,HIGH,ESCALATED,Overseas card purchase declined despite travel notice.
+TK003,C001,2026-09-08,Card,HIGH,OPEN,Card restriction remains after identity verification.
+TK004,C001,2026-09-21,Transactions,URGENT,ESCALATED,Second overseas transaction declined after repeated support contact.
+TK005,C002,2026-03-18,Digital Banking,LOW,RESOLVED,Requested biometric login reset.
+TK006,C002,2026-08-11,Statement,LOW,RESOLVED,Requested an annual fee statement copy.
+TK007,C003,2026-08-19,Rewards,MEDIUM,OPEN,Missing travel reward points from two purchases.
+TK008,C003,2026-09-17,Transactions,HIGH,ESCALATED,Merchant reversal has not appeared on the account.
+TK009,C004,2026-05-04,Relationship,LOW,RESOLVED,Requested relationship manager callback.
+TK010,C004,2026-09-03,Transfer,LOW,RESOLVED,Beneficiary activation needed confirmation.
+TK011,C005,2026-08-20,Fees,MEDIUM,OPEN,Asked for clarification on a late payment fee.
+TK012,C005,2026-09-12,Card,MEDIUM,RESOLVED,Replacement card delivery tracking request.
+TK013,C006,2026-06-14,Rewards,LOW,RESOLVED,Reward redemption option was temporarily unavailable.
+TK014,C006,2026-09-07,Digital Banking,MEDIUM,OPEN,Spending insights are not refreshing in the mobile app.
+TK015,C007,2026-04-22,Transfer,LOW,RESOLVED,Local transfer confirmation was delayed.
+TK016,C008,2026-07-30,Business Card,MEDIUM,OPEN,Employee card limit change is pending.
+TK017,C008,2026-09-18,Transactions,HIGH,ESCALATED,Supplier payment was declined close to invoice due date.
+TK018,C009,2026-02-12,Travel,LOW,RESOLVED,Airport lounge eligibility question.
+TK019,C009,2026-08-05,Rewards,LOW,RESOLVED,Miles transfer completed later than expected.
+TK020,C010,2026-01-28,Relationship,LOW,RESOLVED,Portfolio review appointment rescheduled.
+TK021,C010,2026-09-10,Statement,LOW,RESOLVED,Requested consolidated account statement.
+TK022,C011,2026-08-07,Card,HIGH,OPEN,Contactless payments fail at several merchants.
+TK023,C011,2026-09-16,Transactions,HIGH,ESCALATED,Two card payments were declined after PIN reset.
+TK024,C012,2026-04-13,Business Account,MEDIUM,RESOLVED,Bulk payment template required an update.
+TK025,C012,2026-09-02,Transfer,LOW,RESOLVED,International beneficiary document review completed.
+TK026,C013,2026-08-16,Card,MEDIUM,OPEN,Card upgrade benefit date needs confirmation.
+TK027,C013,2026-09-19,Transactions,MEDIUM,RESOLVED,Restaurant transaction duplicated and then reversed.
+TK028,C014,2026-05-20,Digital Banking,LOW,RESOLVED,Mobile number update verification assistance.
+TK029,C014,2026-09-01,Fees,LOW,RESOLVED,Monthly account fee explanation provided.
+TK030,C007,2026-09-25,Digital Banking,LOW,RESOLVED,Push notification settings were restored.

@@ -1,0 +1,5 @@
+streamlit>=1.41,<2
+pandas>=2.2,<3
+snowflake-connector-python[pandas]>=3.12,<5
+pytest>=8,<10
+

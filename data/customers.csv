@@ -1,0 +1,15 @@
+customer_id,name,email,segment,region,customer_since,product,annual_income,lifetime_value
+C001,Sarah Khan,sarah.khan@example.com,PREMIUM,GCC - UAE,2018-04-12,Platinum Card,185000,248500
+C002,Omar Al-Farsi,omar.alfarsi@example.com,PREMIUM,GCC - Oman,2019-08-21,Wealth Account,168000,206400
+C003,Layla Haddad,layla.haddad@example.com,AFFLUENT,GCC - UAE,2020-02-14,Travel Card,124000,143200
+C004,Yousef Al-Sabah,yousef.alsabah@example.com,PREMIUM,GCC - Kuwait,2017-11-02,Premier Banking,212000,285700
+C005,Noor Rahman,noor.rahman@example.com,MASS,GCC - Bahrain,2023-01-19,Everyday Account,61000,35400
+C006,Faisal Nasser,faisal.nasser@example.com,AFFLUENT,GCC - Saudi Arabia,2021-06-10,Rewards Card,118000,119800
+C007,Mariam Saleh,mariam.saleh@example.com,MASS,GCC - Qatar,2022-09-05,Digital Account,74000,48200
+C008,Khalid Mansour,khalid.mansour@example.com,SME,GCC - UAE,2019-03-27,Business Card,156000,176300
+C009,Aisha Karim,aisha.karim@example.com,AFFLUENT,GCC - Qatar,2020-12-08,Miles Card,132000,154900
+C010,Hamad Al-Thani,hamad.althani@example.com,PREMIUM,GCC - Qatar,2016-07-16,Private Banking,260000,342600
+C011,Rania Farouk,rania.farouk@example.com,MASS,GCC - Saudi Arabia,2024-02-01,Cashback Card,68000,26800
+C012,Tariq Mahmoud,tariq.mahmoud@example.com,SME,GCC - Bahrain,2018-10-23,Business Account,149000,164500
+C013,Dana Ibrahim,dana.ibrahim@example.com,AFFLUENT,GCC - Kuwait,2021-04-30,Signature Card,127000,131700
+C014,Zain Malik,zain.malik@example.com,MASS,GCC - Oman,2023-06-18,Everyday Card,72000,41600
