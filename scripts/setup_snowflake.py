@@ -78,6 +78,25 @@ def run_file(client: SnowflakeClient, path: Path, database: str, schema: str) ->
     print(f"Applied {path.name}")
 
 
+def object_exists(client: SnowflakeClient, database: str, schema: str, name: str) -> bool:
+    """Check a project object without changing it."""
+
+    sql = (
+        f"SELECT COUNT(*) FROM {identifier(database)}.INFORMATION_SCHEMA.TABLES "
+        "WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s"
+    )
+    with client.connection.cursor() as cursor:
+        cursor.execute(sql, (schema.upper(), name.upper()))
+        return int(cursor.fetchone()[0]) > 0
+
+
+def table_count(client: SnowflakeClient, database: str, schema: str, name: str) -> int:
+    qualified = f"{identifier(database)}.{identifier(schema)}.{identifier(name)}"
+    with client.connection.cursor() as cursor:
+        cursor.execute(f"SELECT COUNT(*) FROM {qualified}")
+        return int(cursor.fetchone()[0])
+
+
 def main() -> int:
     client = SnowflakeClient()
     if not client.connect():
@@ -87,8 +106,29 @@ def main() -> int:
     try:
         database, schema = ensure_namespace(client)
         print(f"Using Snowflake namespace {database}.{schema}")
-        for filename in ("01_tables.sql", "02_seed.sql", "03_customer_360.sql"):
-            run_file(client, SQL_DIR / filename, database, schema)
+        table_names = ("CUSTOMERS", "TRANSACTIONS", "SUPPORT_TICKETS", "CALL_TRANSCRIPTS")
+        existing_tables = {
+            name: object_exists(client, database, schema, name) for name in table_names
+        }
+        if not all(existing_tables.values()):
+            run_file(client, SQL_DIR / "01_tables.sql", database, schema)
+
+        counts = {
+            name: table_count(client, database, schema, name) for name in table_names
+        }
+        if all(count == 0 for count in counts.values()):
+            run_file(client, SQL_DIR / "02_seed.sql", database, schema)
+        elif any(count == 0 for count in counts.values()):
+            raise RuntimeError(
+                "Partial existing CustomerPulse data detected; refusing to overwrite populated tables"
+            )
+        else:
+            print("Existing CustomerPulse tables contain data; seed step skipped.")
+
+        if not object_exists(client, database, schema, "CUSTOMER_360"):
+            run_file(client, SQL_DIR / "03_customer_360.sql", database, schema)
+        else:
+            print("Existing CUSTOMER_360 found; view creation skipped.")
         with client.connection.cursor() as cursor:
             cursor.execute("SELECT COUNT(*) FROM CUSTOMER_360")
             customer_count = int(cursor.fetchone()[0])
@@ -109,4 +149,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

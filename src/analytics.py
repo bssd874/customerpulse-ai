@@ -257,6 +257,8 @@ def customer_context(row: pd.Series | Mapping[str, Any]) -> dict[str, Any]:
         "latest_call_transcript",
         "sentiment_score",
         "sentiment_label",
+        "snowflake_sentiment_label",
+        "sentiment_source",
         "risk_score",
         "risk_tier",
         "risk_explanations",

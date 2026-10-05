@@ -23,9 +23,11 @@ APP_CSS = """
     .cp-label { color: #526477; text-transform: uppercase; letter-spacing: .06em;
         font-size: .7rem; font-weight: 700; }
     .cp-value { color: #10233f; font-weight: 750; font-size: 1.08rem; margin-top: .2rem; }
-    .risk-high { color: #b91c1c; font-weight: 800; }
-    .risk-medium { color: #b45309; font-weight: 800; }
-    .risk-low { color: #047857; font-weight: 800; }
+    .cp-risk-badge { display: inline-block; border-radius: 999px; padding: .3rem .72rem;
+        font-size: .78rem; font-weight: 800; letter-spacing: .04em; border: 1px solid; }
+    .risk-high { color: #991b1b; background: #fee2e2; border-color: #fca5a5; }
+    .risk-medium { color: #92400e; background: #fef3c7; border-color: #fcd34d; }
+    .risk-low { color: #065f46; background: #d1fae5; border-color: #6ee7b7; }
     div[data-testid="stMetric"] { background: white; border: 1px solid #dbe5ee;
         padding: .8rem 1rem; border-radius: 14px; box-shadow: 0 4px 12px rgba(15, 42, 68, .05); }
     div[data-testid="stMetricLabel"] { color: #526477; }
@@ -47,6 +49,25 @@ def trend(value: Any) -> str:
 
 def relationship_years(customer_since: Any, as_of: Any) -> float:
     return max(0.0, (pd.Timestamp(as_of) - pd.Timestamp(customer_since)).days / 365.25)
+
+
+def risk_semantic_class(tier: Any) -> str:
+    """Return the stable danger/warning/healthy class for a risk tier."""
+
+    normalized = str(tier).strip().upper()
+    return {
+        "HIGH": "risk-high",
+        "MEDIUM": "risk-medium",
+        "LOW": "risk-low",
+    }.get(normalized, "risk-medium")
+
+
+def risk_badge(tier: Any, score: Any | None = None) -> str:
+    """Render risk without Streamlit's positive-delta color semantics."""
+
+    normalized = str(tier).strip().upper()
+    label = f"{normalized} · {int(score)}/100" if score is not None else normalized
+    return f'<span class="cp-risk-badge {risk_semantic_class(normalized)}">{label}</span>'
 
 
 def risk_contribution_text(explanations: Any) -> list[str]:
@@ -84,12 +105,25 @@ def answer_customer_question(question: str, customer_360: pd.DataFrame) -> dict[
         }
 
     if "negative" in query and ("sentiment" in query or "call" in query):
-        result = customer_360[customer_360["sentiment_score"] < -0.2].sort_values(
-            "sentiment_score"
-        )
+        native_available = False
+        if "snowflake_sentiment_label" in customer_360.columns:
+            native = customer_360["snowflake_sentiment_label"].fillna("").str.upper()
+            native_available = native.ne("").any()
+            result = customer_360[native.eq("NEGATIVE")]
+            sentiment_columns = ["name", "snowflake_sentiment_label", "risk_score"]
+        else:
+            result = customer_360[customer_360["sentiment_score"] < -0.2].sort_values(
+                "sentiment_score"
+            )
+            sentiment_columns = ["name", "sentiment_label", "sentiment_score", "risk_score"]
+        if not native_available and "sentiment_score" in customer_360.columns:
+            result = customer_360[customer_360["sentiment_score"] < -0.2].sort_values(
+                "sentiment_score"
+            )
+            sentiment_columns = ["name", "sentiment_label", "sentiment_score", "risk_score"]
         return {
             "answer": f"{len(result)} customers have negative latest-call sentiment.",
-            "table": result[["name", "sentiment_label", "sentiment_score", "risk_score"]],
+            "table": result[sentiment_columns],
         }
 
     if "retention" in query or "contact first" in query or "priority" in query:

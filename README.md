@@ -24,8 +24,8 @@ CustomerPulse AI creates one evidence-grounded customer view, scores four transp
 - Portfolio command center with risk and value prioritization.
 - Customer 360 across profile, value, support, and voice signals.
 - Deterministic 0–100 risk score with visible contributions.
-- Snowflake `AI_COMPLETE` recommendations when access is available.
-- Current `AI_SENTIMENT` enrichment view for supported Snowflake regions and roles.
+- Account-probed Snowflake `AI_COMPLETE` risk explanations and recommendations.
+- Current `AI_SENTIMENT` enrichment with truthful native sentiment labels.
 - Polished deterministic explanation and Next Best Action fallback.
 - Controlled natural-language questions grounded in the loaded data.
 
@@ -103,15 +103,18 @@ The default namespace is `CUSTOMERPULSE_DB.APP`. SQL files create project-only t
 
 Connection priority is:
 
-1. `connections.toml` / named Snowflake connection;
+1. Streamlit Community Cloud `st.secrets["snowflake"]`;
 2. Snowflake environment variables;
-3. local demo mode.
+3. a local `connections.toml` / named connection profile;
+4. local demo mode.
 
-Connection failures are reduced to non-secret diagnostics and never stop the Streamlit app.
+The app runs a `CURRENT_ACCOUNT`/user/role/warehouse/database/schema health check before showing **🟢 Live Snowflake**. Portfolio, Customer 360, and controlled Q&A use the live `CUSTOMER_360` result only after that query succeeds. Connection failures are reduced to non-secret diagnostics and never stop Streamlit.
 
 ## 11. Snowflake AI usage
 
-The optional `CUSTOMER_360_AI` view calls current `AI_SENTIMENT` and retains its object result. The application calls current `AI_COMPLETE(model, prompt)` for concise explanations and structured recommendations. Prompts restrict output to supplied evidence and prohibit invented facts. Roles need the appropriate Cortex AI privileges and regional availability; setup safely skips only the optional AI view if it is unavailable.
+The app calls current `AI_SENTIMENT(text)` for latest call transcripts and preserves its native `positive`, `negative`, `neutral`, `mixed`, or `unknown` meaning separately from deterministic risk severity. The numeric risk score never comes from an LLM. For generation, a short model list is capability-probed and the first successful model is cached for `AI_COMPLETE(model, prompt)`. The two live generation tasks are concise risk explanation and structured Next Best Action. Prompts restrict output to displayed evidence and prohibit invented facts, products, discounts, compensation, probabilities, and guaranteed outcomes.
+
+Roles need `USE AI FUNCTIONS` plus an appropriate Cortex database role such as `SNOWFLAKE.CORTEX_USER`, as well as regional/model availability. If either function fails, the relevant deterministic output remains available and is labelled truthfully.
 
 References: [AI_SENTIMENT documentation](https://docs.snowflake.com/en/sql-reference/functions/ai_sentiment), [AI_COMPLETE documentation](https://docs.snowflake.com/en/sql-reference/functions/ai_complete).
 
@@ -121,7 +124,7 @@ The environment used to build and validate this repository did not have a `corte
 
 ## 13. Local demo mode
 
-When Snowflake configuration is absent or a connection fails, the banner reads **🟡 Demo Mode — Snowflake connection unavailable**. pandas performs the complete Customer 360 aggregation, lexical sentiment fallback, scoring, Q&A, and deterministic recommendation. Deterministic output is explicitly labeled and is never presented as model-generated.
+When Snowflake configuration is absent, health checks fail, or `CUSTOMER_360` cannot be queried, the banner reads **🟡 Demo Mode** with a secondary “Using deterministic local snapshot” caption. pandas performs the complete Customer 360 aggregation, lexical sentiment fallback, scoring, Q&A, and deterministic recommendation. Deterministic output is explicitly labelled and is never presented as model-generated.
 
 ## 14. Installation
 
@@ -145,13 +148,13 @@ The four tabs are Portfolio Overview, Customer 360, Next Best Action, and Ask Cu
 
 ## 16. Snowflake setup
 
-Use either a standard Snowflake `connections.toml` profile or environment variables listed in `.env.example`. Do not put credentials in source control.
+For Streamlit Community Cloud, copy the placeholder key structure from `.streamlit/secrets.toml.example` into the deployed app's Secrets settings. Community Cloud does not receive a developer machine's `~/.snowflake/connections.toml`. See [the deployment guide](submission/STREAMLIT_DEPLOYMENT.md). Local development can also use a standard Snowflake profile or the variables listed in `.env.example`. Do not put credentials in source control.
 
 ```bash
 python scripts/setup_snowflake.py
 ```
 
-For direct SQL execution, run `00_setup.sql`, `01_tables.sql`, `02_seed.sql`, `03_customer_360.sql`, and `04_validation.sql` in order. A role that uses AI functions needs Snowflake Cortex access; the base deterministic `CUSTOMER_360` view does not require an AI model.
+For a fresh, dedicated namespace, direct SQL execution can run `00_setup.sql`, `01_tables.sql`, `02_seed.sql`, `03_customer_360.sql`, and `04_validation.sql` in order. `02_seed.sql` is intentionally a fresh-demo seed and must not be run over data that should be retained. The setup script is safer: it validates existing project objects, skips populated tables and an existing `CUSTOMER_360`, and refuses to overwrite a partial populated dataset. A role that uses AI functions needs Snowflake Cortex access; the base deterministic `CUSTOMER_360` view does not require an AI model.
 
 ## 17. Testing
 
@@ -161,7 +164,7 @@ python scripts/smoke_test.py
 python -m compileall -q app.py src scripts tests
 ```
 
-Tests cover score composition, tier boundaries, time windows, aggregation, Sarah's scenario, fallback labeling, and dataset integrity.
+Tests cover score composition, tier boundaries, time windows, aggregation, Sarah's scenario, configuration priority, reconnect/fallback behavior, AI parsers, semantic risk colors, fallback labeling, and dataset integrity.
 
 ## 18. Hackathon challenge mapping
 
@@ -173,6 +176,17 @@ Tests cover score composition, tier boundaries, time windows, aggregation, Sarah
 | Snowflake AI | Current AI functions behind permission-safe optional paths |
 | Next Best Action | Prioritized action, reason, outreach, and objective |
 | Demo reliability | Full local path with no credentials required |
+
+### Technology proof
+
+| Layer | Implementation |
+|---|---|
+| Structured data | Snowflake tables and `CUSTOMER_360` view |
+| Unstructured data | `CALL_TRANSCRIPTS` customer conversations |
+| Explainable analytics | Deterministic, auditable risk engine |
+| Snowflake AI | Current `AI_SENTIMENT` and `AI_COMPLETE` functions when live probes pass |
+| Interface | Streamlit four-tab decision workspace |
+| Development workflow | CoCo CLI only where genuinely executed; current build evidence is documented in `COCO_USAGE.md` |
 
 ## 19. Limitations
 

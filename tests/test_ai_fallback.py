@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from src.ai import explain_risk, generate_next_best_action
+from src.ai import explain_risk, generate_next_best_action, parse_next_best_action
 
 
 SARAH_CONTEXT = {
@@ -42,3 +42,18 @@ def test_next_best_action_fallback_is_complete() -> None:
         assert result[key]
     assert "Sarah Khan" in result["suggested_outreach"]
 
+
+def test_next_best_action_parser_accepts_labelled_output() -> None:
+    response = """Priority: P1 — Contact today
+Recommended Action: Assign a senior retention specialist.
+Why: Multiple verified risk signals are active.
+Suggested Outreach: I will personally coordinate the outstanding issue.
+Business Objective: Restore confidence and retain the relationship."""
+    parsed = parse_next_best_action(response)
+    assert parsed is not None
+    assert parsed["priority"].startswith("P1")
+    assert parsed["recommended_action"].startswith("Assign")
+
+
+def test_next_best_action_parser_rejects_incomplete_output() -> None:
+    assert parse_next_best_action("Priority: P1\nWhy: Risk is high") is None

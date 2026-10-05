@@ -16,6 +16,7 @@ from src.ui import (
     answer_customer_question,
     money,
     relationship_years,
+    risk_badge,
     risk_contribution_text,
     trend,
 )
@@ -27,8 +28,14 @@ def local_snapshot() -> tuple[dict[str, pd.DataFrame], pd.DataFrame]:
 
 
 def snowflake_client() -> SnowflakeClient:
-    client = SnowflakeClient()
-    client.connect()
+    try:
+        section = st.secrets.get("snowflake", {})
+        secrets = {"snowflake": dict(section)} if section else None
+    except (FileNotFoundError, KeyError, TypeError, ValueError):
+        secrets = None
+    client = SnowflakeClient(secrets=secrets)
+    if client.connect():
+        client.probe_ai_capabilities()
     return client
 
 
@@ -41,7 +48,11 @@ def _card(label: str, value: str) -> None:
 
 
 def _risk_style(row: pd.Series) -> list[str]:
-    color = "background-color: #fff0f0" if row.get("Risk Tier") == "HIGH" else ""
+    color = {
+        "HIGH": "background-color: #fee2e2; color: #991b1b",
+        "MEDIUM": "background-color: #fef3c7; color: #92400e",
+        "LOW": "background-color: #d1fae5; color: #065f46",
+    }.get(row.get("Risk Tier"), "")
     return [color] * len(row)
 
 
@@ -72,6 +83,34 @@ def _normalize_snowflake_frame(frame: pd.DataFrame) -> pd.DataFrame:
     ).reset_index(drop=True)
 
 
+def resolve_customer_360(
+    local_frame: pd.DataFrame, client: SnowflakeClient
+) -> tuple[pd.DataFrame, str]:
+    """Choose a truthful live dataset or the complete deterministic fallback."""
+
+    local = local_frame.copy()
+    local["snowflake_sentiment_label"] = None
+    local["sentiment_source"] = "deterministic"
+    local["data_source"] = "local"
+    if not client.connected:
+        return local, "local"
+    try:
+        live = client.fetch_customer_360()
+        if live.empty or not set(local_frame.columns) <= set(live.columns):
+            raise ValueError("CUSTOMER_360 is missing required columns")
+        live = _normalize_snowflake_frame(live)
+    except Exception:
+        return local, "local"
+
+    try:
+        live = client.enrich_customer_sentiments(live)
+    except Exception:
+        live["snowflake_sentiment_label"] = None
+        live["sentiment_source"] = "deterministic"
+    live["data_source"] = "snowflake"
+    return live, "snowflake"
+
+
 def main() -> None:
     st.set_page_config(
         page_title="CustomerPulse AI",
@@ -93,34 +132,35 @@ def main() -> None:
 
     cached_snapshot = st.cache_data(local_snapshot, show_spinner=False)
     cached_client = st.cache_resource(snowflake_client, show_spinner=False)
-    frames, customer_360 = cached_snapshot()
+    frames, local_customer_360 = cached_snapshot()
     client = cached_client()
-    data_source = "deterministic local snapshot"
-    if client.connected:
-        if "snowflake_customer_360" not in st.session_state:
-            try:
-                live_frame = client.fetch_customer_360()
-                required = set(customer_360.columns)
-                if live_frame.empty or not required <= set(live_frame.columns):
-                    raise ValueError("CUSTOMER_360 view is missing required data")
-                st.session_state["snowflake_customer_360"] = _normalize_snowflake_frame(live_frame)
-            except Exception:
-                st.session_state["snowflake_customer_360"] = None
-        if st.session_state["snowflake_customer_360"] is not None:
-            customer_360 = st.session_state["snowflake_customer_360"]
-            data_source = "Snowflake CUSTOMER_360 view"
-    status_col, freshness_col = st.columns([2, 3])
+    if "customer_360_dataset" not in st.session_state:
+        customer_360, data_source = resolve_customer_360(local_customer_360, client)
+        st.session_state["customer_360_dataset"] = customer_360
+        st.session_state["customer_data_source"] = data_source
+    customer_360 = st.session_state["customer_360_dataset"]
+    data_source = st.session_state["customer_data_source"]
+    live_data = data_source == "snowflake"
+
+    status_col, ai_col, freshness_col = st.columns([2, 2, 4])
     with status_col:
-        if client.connected:
-            st.success("🟢 Snowflake Connected")
+        if live_data:
+            st.success("🟢 Live Snowflake")
         else:
-            st.warning("🟡 Demo Mode — Snowflake connection unavailable")
+            st.warning("🟡 Demo Mode")
+    with ai_col:
+        if live_data and client.ai_active:
+            st.success("🟢 Snowflake AI Active")
+        else:
+            st.caption("Deterministic AI fallback ready")
     with freshness_col:
         analysis_date = frames["transactions"]["transaction_date"].max()
-        st.caption(
-            f"{data_source.title()} · observation date {analysis_date:%d %b %Y} · "
-            f"{client.diagnostic}"
+        source_text = (
+            "Customer 360 sourced from Snowflake"
+            if live_data
+            else "Using deterministic local snapshot"
         )
+        st.caption(f"{source_text} · observation date {analysis_date:%d %b %Y}")
 
     tab_overview, tab_customer, tab_action, tab_ask = st.tabs(
         [
@@ -154,7 +194,12 @@ def main() -> None:
                 "unresolved_tickets",
                 "transaction_change_pct",
             ]
-        ].rename(
+        ].copy()
+        if "snowflake_sentiment_label" in customer_360:
+            display["sentiment_label"] = customer_360["snowflake_sentiment_label"].fillna(
+                customer_360["sentiment_label"]
+            )
+        display = display.rename(
             columns={
                 "name": "Customer",
                 "segment": "Segment",
@@ -190,6 +235,8 @@ def main() -> None:
             _card("Open support workload", f"{int(customer_360['unresolved_tickets'].sum())} unresolved cases")
 
     with tab_customer:
+        if live_data:
+            st.caption("Customer 360 sourced from Snowflake")
         names = customer_360["name"].tolist()
         default_index = names.index("Sarah Khan") if "Sarah Khan" in names else 0
         selected_name = st.selectbox("Select customer", names, index=default_index, key="customer_360_name")
@@ -201,7 +248,8 @@ def main() -> None:
             st.caption(f"{row['customer_id']} · {row['segment']} · {row['region']}")
         with risk_col:
             tier = str(row["risk_tier"])
-            st.metric("Risk", f"{int(row['risk_score'])}/100", tier)
+            st.metric("Risk", f"{int(row['risk_score'])}/100")
+            st.markdown(risk_badge(tier), unsafe_allow_html=True)
 
         profile_col, value_col = st.columns([2, 3])
         with profile_col:
@@ -238,14 +286,33 @@ def main() -> None:
         with voice_col:
             with st.container(border=True):
                 st.markdown("#### Voice of Customer")
-                st.metric("Sentiment", row["sentiment_label"], f"{float(row['sentiment_score']):+.2f}")
+                snowflake_sentiment = row.get("snowflake_sentiment_label")
+                has_snowflake_sentiment = (
+                    pd.notna(snowflake_sentiment)
+                    and str(snowflake_sentiment).strip() != ""
+                )
+                if has_snowflake_sentiment:
+                    st.metric("Snowflake sentiment", str(snowflake_sentiment))
+                    st.caption("Snowflake AI_SENTIMENT")
+                    st.write(f"**Risk severity:** {row['sentiment_label']} (deterministic business rule)")
+                else:
+                    st.metric(
+                        "Sentiment",
+                        row["sentiment_label"],
+                        f"{float(row['sentiment_score']):+.2f}",
+                    )
+                    st.caption("Deterministic sentiment fallback")
                 st.markdown(f"> {row['latest_call_transcript']}")
 
         with st.container(border=True):
             st.markdown("#### Explainable Risk")
             score_col, explanation_col = st.columns([1, 3])
             with score_col:
-                st.metric("Risk score", f"{int(row['risk_score'])}/100", row["risk_tier"])
+                st.metric("Risk score", f"{int(row['risk_score'])}/100")
+                st.markdown(
+                    risk_badge(row["risk_tier"]),
+                    unsafe_allow_html=True,
+                )
                 st.progress(int(row["risk_score"]))
             with explanation_col:
                 contributions = risk_contribution_text(row["risk_explanations"])
@@ -262,19 +329,20 @@ def main() -> None:
         )
         action_row = _selected_row(customer_360, action_name)
         context = customer_context(action_row)
-        cache_key = f"{action_name}:{client.connected}"
+        cache_key = f"{action_name}:{data_source}:{client.working_ai_model}"
         if st.session_state.get("nba_cache_key") != cache_key:
             with st.spinner("Evaluating customer evidence..."):
-                st.session_state["risk_explanation"] = explain_risk(context, client)
-                st.session_state["next_action"] = generate_next_best_action(context, client)
+                ai_client = client if live_data else None
+                st.session_state["risk_explanation"] = explain_risk(context, ai_client)
+                st.session_state["next_action"] = generate_next_best_action(context, ai_client)
                 st.session_state["nba_cache_key"] = cache_key
         explanation = st.session_state["risk_explanation"]
         action = st.session_state["next_action"]
 
         if action["source"] == "snowflake_ai":
-            st.success("Generated with Snowflake AI_COMPLETE using the displayed customer evidence.")
+            st.caption("Generated with Snowflake AI_COMPLETE · Grounded in CUSTOMER_360")
         else:
-            st.info("Deterministic fallback — generated from the explainable risk rules, not an AI model.")
+            st.caption("Deterministic fallback")
 
         with st.container(border=True):
             st.markdown("#### Why is this customer at risk?")
@@ -289,7 +357,10 @@ def main() -> None:
 
     with tab_ask:
         st.subheader("Ask Customer Data")
-        st.caption("Controlled, data-grounded answers — no arbitrary SQL and no invented customer values.")
+        if live_data:
+            st.caption("Answers grounded in Snowflake CUSTOMER_360")
+        else:
+            st.caption("Controlled, data-grounded answers from the deterministic local snapshot.")
         suggested = [
             "Which high-value customers are most at risk?",
             "Why is Sarah Khan at risk?",

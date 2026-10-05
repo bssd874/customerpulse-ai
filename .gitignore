@@ -5,7 +5,12 @@ __pycache__/
 .pytest_cache/
 *.pyc
 .streamlit/secrets.toml
+*.pem
+*.p8
+*.pk8
+*.key
+connections.toml
+.snowflake/
 .coverage
 htmlcov/
 *.log
-

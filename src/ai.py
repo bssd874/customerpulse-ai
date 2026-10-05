@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any, Mapping
 
 from src.snowflake_client import SnowflakeClient
@@ -33,6 +34,8 @@ def _evidence_json(context: Mapping[str, Any]) -> str:
             "latest_ticket_summary",
             "latest_call_transcript",
             "sentiment_label",
+            "snowflake_sentiment_label",
+            "sentiment_source",
             "risk_score",
             "risk_tier",
             "risk_explanations",
@@ -48,13 +51,19 @@ def explain_risk(
 
     if client is not None and client.connected:
         prompt = (
-            "You are an enterprise customer-retention analyst. Use ONLY the supplied JSON evidence. "
-            "Do not invent facts or infer protected traits. In at most 90 words, explain why the customer "
-            "has this risk score, connect the signals, and remain actionable and concise.\nEVIDENCE:\n"
+            "You are an enterprise customer-retention analyst. Use ONLY the supplied Customer 360 "
+            "evidence. Do not invent products, events, complaints, transactions, financial amounts, "
+            "customer history, or protected traits. The deterministic risk score is authoritative; "
+            "explain it but never recalculate it. Mention the most important signals. In at most 90 words, "
+            "be concise, grounded, and suitable for a relationship manager.\nEVIDENCE:\n"
             + _evidence_json(customer_context)
         )
         try:
-            return {"text": client.ai_complete(prompt), "source": "snowflake_ai"}
+            return {
+                "text": client.ai_complete(prompt),
+                "source": "snowflake_ai",
+                "model": client.working_ai_model or "account-verified model",
+            }
         except Exception:
             pass
 
@@ -68,6 +77,55 @@ def explain_risk(
     else:
         text = f"{name} is {tier} risk ({score}/100); no configured risk trigger is currently active."
     return {"text": text, "source": "deterministic"}
+
+
+ACTION_FIELDS = {
+    "priority": "priority",
+    "recommended action": "recommended_action",
+    "why": "why",
+    "suggested outreach": "suggested_outreach",
+    "business objective": "business_objective",
+}
+
+
+def parse_next_best_action(response: str) -> dict[str, str] | None:
+    """Parse either JSON or strongly labelled AI_COMPLETE output."""
+
+    text = response.strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text, flags=re.IGNORECASE)
+    try:
+        decoded = json.loads(text)
+    except json.JSONDecodeError:
+        decoded = None
+    if isinstance(decoded, Mapping):
+        parsed_json = {
+            target: str(decoded.get(target, decoded.get(label, ""))).strip()
+            for label, target in ACTION_FIELDS.items()
+        }
+        if all(parsed_json.values()):
+            return parsed_json
+
+    parsed: dict[str, str] = {}
+    current_key: str | None = None
+    for raw_line in text.splitlines():
+        line = re.sub(r"^[\s*#>-]+", "", raw_line).strip()
+        line = line.replace("**", "")
+        if not line:
+            continue
+        matched = False
+        for label, key in ACTION_FIELDS.items():
+            match = re.match(rf"^{re.escape(label)}\s*:\s*(.*)$", line, re.IGNORECASE)
+            if match:
+                value = match.group(1).strip()
+                if value:
+                    parsed[key] = value
+                current_key = key
+                matched = True
+                break
+        if not matched and current_key:
+            parsed[current_key] = f"{parsed.get(current_key, '')} {line}".strip()
+    return parsed if all(key in parsed and parsed[key] for key in ACTION_FIELDS.values()) else None
 
 
 def _fallback_action(context: Mapping[str, Any]) -> dict[str, str]:
@@ -127,31 +185,19 @@ def generate_next_best_action(
 
     if client is not None and client.connected:
         prompt = (
-            "You are an enterprise retention decision engine. Use ONLY the supplied JSON evidence and do "
-            "not invent offers, policy, or facts. Return exactly five short lines using these labels: Priority:, "
-            "Recommended Action:, Why:, Suggested Outreach:, Business Objective:. Keep the recommendation "
-            "specific, humane, and operational.\nEVIDENCE:\n"
+            "You are an enterprise retention decision engine. Use ONLY the supplied Customer 360 evidence. "
+            "Do not invent facts, discounts, fees, compensation, legal claims, products outside the known "
+            "customer product, probabilities, or guaranteed outcomes. Return exactly five concise lines "
+            "using these labels: Priority:, Recommended Action:, Why:, Suggested Outreach:, Business "
+            "Objective:. Keep the recommendation specific, humane, and operational.\nEVIDENCE:\n"
             + _evidence_json(customer_context)
         )
         try:
             response = client.ai_complete(prompt)
-            labels = {
-                "priority": "priority",
-                "recommended action": "recommended_action",
-                "why": "why",
-                "suggested outreach": "suggested_outreach",
-                "business objective": "business_objective",
-            }
-            parsed: dict[str, str] = {}
-            for line in response.splitlines():
-                if ":" not in line:
-                    continue
-                label, value = line.split(":", 1)
-                key = labels.get(label.strip().lower())
-                if key and value.strip():
-                    parsed[key] = value.strip()
-            if len(parsed) == 5:
+            parsed = parse_next_best_action(response)
+            if parsed:
                 parsed["source"] = "snowflake_ai"
+                parsed["model"] = client.working_ai_model or "account-verified model"
                 return parsed
         except Exception:
             pass
